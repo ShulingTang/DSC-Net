@@ -123,9 +123,11 @@ class ConvAE(nn.Module):
 class SelfExpression(nn.Module):
     def __init__(self, n):
         super(SelfExpression, self).__init__()
+        # torch.nn.Paramater 将一个不可训练的类型Tensor转换成可以训练的类型parameter并将这个parameter绑定到这个module里面
         self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, n, dtype=torch.float32), requires_grad=True)
 
     def forward(self, x):  # shape=[n, d]
+        # torch.matmul 高维矩阵乘  torch.mm针对二维矩阵乘
         y = torch.matmul(self.Coefficient, x)
         return y
 
@@ -142,7 +144,9 @@ class DSCNet(nn.Module):
 
         # self expression layer, reshape to vectors, multiply Coefficient, then reshape back
         shape = z.shape
+        print("z.shape is:", shape)
         z = z.view(self.n, -1)  # shape=[n, d]
+        print("z.view():", z)
         z_recon = self.self_expression(z)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
 
@@ -152,6 +156,7 @@ class DSCNet(nn.Module):
     def loss_fn(self, x, x_recon, z, z_recon, weight_coef, weight_selfExp):
         loss_ae = F.mse_loss(x_recon, x, reduction='sum')
         loss_coef = torch.sum(torch.pow(self.self_expression.Coefficient, 2))
+        # F.mse_loss均方误差损失
         loss_selfExp = F.mse_loss(z_recon, z, reduction='sum')
         loss = loss_ae + weight_coef * loss_coef + weight_selfExp * loss_selfExp
 
@@ -185,12 +190,15 @@ if __name__ == "__main__":
     import argparse
     import warnings
 
+    # ArgumentParser参数解析器，描述它做了什么
     parser = argparse.ArgumentParser(description='DSCNet')
+    # add_argument函数来增加参数
     parser.add_argument('--db', default='coil20',
                         choices=['coil20', 'coil100', 'orl', 'reuters10k', 'stl'])
     parser.add_argument('--show-freq', default=10, type=int)
     parser.add_argument('--ae-weights', default=None)
     parser.add_argument('--save-dir', default='results')
+    # parse_args获取解析的参数
     args = parser.parse_args()
     print(args)
     import os
@@ -204,6 +212,7 @@ if __name__ == "__main__":
         # load data
         data = sio.loadmat('datasets/COIL20.mat')
         x, y = data['fea'].reshape((-1, 1, 32, 32)), data['gnd']
+        # np.squeeze(x)从数组的形状中删除单维条目，即把shape中为1的维度去掉
         y = np.squeeze(y - 1)  # y in [0, 1, ..., K-1]
 
         # network and optimization parameters
