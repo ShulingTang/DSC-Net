@@ -149,7 +149,6 @@ class DSCNet(nn.Module):
         print("z.view():", z)
         z_recon = self.self_expression(z)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
-
         x_recon = self.ae.decoder(z_recon_reshape)  # shape=[n, c, w, h]
         return x_recon, z, z_recon
 
