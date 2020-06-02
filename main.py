@@ -10,6 +10,7 @@ import numpy as np
 from post_clustering import spectral_clustering, acc, nmi
 import scipy.io as sio
 import math
+from sklearn.cluster import KMeans
 
 
 class Conv2dSamePad(nn.Module):
@@ -121,10 +122,10 @@ class ConvAE(nn.Module):
 
 
 class SelfExpression(nn.Module):
-    def __init__(self, n):
+    def __init__(self, n, m):
         super(SelfExpression, self).__init__()
         # torch.nn.Paramater 将一个不可训练的类型Tensor转换成可以训练的类型parameter并将这个parameter绑定到这个module里面
-        self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, n, dtype=torch.float32), requires_grad=True)
+        self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(m, n, dtype=torch.float32), requires_grad=True)
 
     def forward(self, x):  # shape=[n, d]
         # torch.matmul 高维矩阵乘  torch.mm针对二维矩阵乘
@@ -133,21 +134,24 @@ class SelfExpression(nn.Module):
 
 
 class DSCNet(nn.Module):
-    def __init__(self, channels, kernels, num_sample):
+    def __init__(self, channels, kernels, num_sample, m):
         super(DSCNet, self).__init__()
         self.n = num_sample
         self.ae = ConvAE(channels, kernels)
-        self.self_expression = SelfExpression(self.n)
+        self.self_expression = SelfExpression(self.n, m)
 
-    def forward(self, x):  # shape=[n, c, w, h]
+    def forward(self, x, m):  # shape=[n, c, w, h]
         z = self.ae.encoder(x)
-
         # self expression layer, reshape to vectors, multiply Coefficient, then reshape back
         shape = z.shape
         print("z.shape is:", shape)
         z = z.view(self.n, -1)  # shape=[n, d]
         print("z.view():", z)
-        z_recon = self.self_expression(z)  # shape=[n, d]
+        # 通过Kmean获取m个锚点
+        z = z.detach()
+        M = KMeans(n_clusters=m, random_state=0).fit(z)
+
+        z_recon = self.self_expression(M)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
         x_recon = self.ae.decoder(z_recon_reshape)  # shape=[n, c, w, h]
         return x_recon, z, z_recon
@@ -164,7 +168,7 @@ class DSCNet(nn.Module):
 
 def train(model,  # type: DSCNet
           x, y, epochs, lr=1e-3, weight_coef=1.0, weight_selfExp=150, device='cuda',
-          alpha=0.04, dim_subspace=12, ro=8, show=10):
+          alpha=0.04, dim_subspace=12, ro=8, show=10 , m=100):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     if not isinstance(x, torch.Tensor):
         x = torch.tensor(x, dtype=torch.float32, device=device)
@@ -173,7 +177,7 @@ def train(model,  # type: DSCNet
         y = y.to('cpu').numpy()
     K = len(np.unique(y))
     for epoch in range(epochs):
-        x_recon, z, z_recon = model(x)
+        x_recon, z, z_recon = model(x, m)
         loss = model.loss_fn(x, x_recon, z, z_recon, weight_coef=weight_coef, weight_selfExp=weight_selfExp)
         optimizer.zero_grad()
         loss.backward()
@@ -221,6 +225,7 @@ if __name__ == "__main__":
         epochs = 40
         weight_coef = 1.0
         weight_selfExp = 75
+        kmeansNum = 100
 
         # post clustering parameters
         alpha = 0.04  # threshold of C
@@ -240,6 +245,7 @@ if __name__ == "__main__":
         epochs = 120
         weight_coef = 1.0
         weight_selfExp = 15
+        kmeansNum = 100
 
         # post clustering parameters
         alpha = 0.04  # threshold of C
@@ -257,13 +263,14 @@ if __name__ == "__main__":
         epochs = 700
         weight_coef = 2.0
         weight_selfExp = 0.2
+        kmeansNum = 100
 
         # post clustering parameters
         alpha = 0.2  # threshold of C
         dim_subspace = 3  # dimension of each subspace
         ro = 1  #
 
-    dscnet = DSCNet(num_sample=num_sample, channels=channels, kernels=kernels)
+    dscnet = DSCNet(num_sample=num_sample, channels=channels, kernels=kernels, m=kmeansNum)
     dscnet.to(device)
 
     # load the pretrained weights which are provided by the original author in
@@ -273,5 +280,5 @@ if __name__ == "__main__":
     print("Pretrained ae weights are loaded successfully.")
 
     train(dscnet, x, y, epochs, weight_coef=weight_coef, weight_selfExp=weight_selfExp,
-          alpha=alpha, dim_subspace=dim_subspace, ro=ro, show=args.show_freq, device=device)
+          alpha=alpha, dim_subspace=dim_subspace, ro=ro, show=args.show_freq, device=device, m=kmeansNum)
     torch.save(dscnet.state_dict(), args.save_dir + '/%s-model.ckp' % args.db)

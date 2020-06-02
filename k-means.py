@@ -84,15 +84,15 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     plt.figure()
-
-    device = choose_device(False)
-
-    cpu_speeds = []
-    for i in tqdm([20,100,500,2000,8000,20000]):
-        matrix = torch.rand((10000,i)).to(device)
-        speed = time_clock(matrix,device)
-        cpu_speeds.append(speed)
-    l1, = plt.plot([20,100,500,2000,8000,20000],cpu_speeds,color = 'r',label = 'CPU')
+    #
+    # device = choose_device(False)
+    #
+    # cpu_speeds = []
+    # for i in tqdm([20,100,500,2000,8000,20000]):
+    #     matrix = torch.rand((10000,i)).to(device)
+    #     speed = time_clock(matrix,device)
+    #     cpu_speeds.append(speed)
+    # l1, = plt.plot([20,100,500,2000,8000,20000],cpu_speeds,color = 'r',label = 'CPU')
 
     device = choose_device(True)
 
@@ -109,5 +109,5 @@ if __name__ == "__main__":
     plt.ylabel("speed(s/iter)")
     plt.title("Speed with cuda")
     plt.legend(handles = [l1,l2],labels = ['CPU','GPU'],loc='best')
-    plt.savefig("../result/speed.jpg")
+    plt.savefig("../results/speed.jpg")
 
