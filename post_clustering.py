@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from sklearn import cluster
 from scipy.sparse.linalg import svds
@@ -82,6 +83,8 @@ def post_proC(C, K, d, ro):
 
 
 def spectral_clustering(C, K, d, alpha, ro):
+    # 将C化为n*n
+    C = torch.matmul(C, torch.t(C))
     C = thrC(C, alpha)
     y, _ = post_proC(C, K, d, ro)
     return y

@@ -125,9 +125,12 @@ class SelfExpression(nn.Module):
     def __init__(self, n, m):
         super(SelfExpression, self).__init__()
         # torch.nn.Paramater 将一个不可训练的类型Tensor转换成可以训练的类型parameter并将这个parameter绑定到这个module里面
-        self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(m, n, dtype=torch.float32), requires_grad=True)
+        self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, m, dtype=torch.float32), requires_grad=True)
 
     def forward(self, x):  # shape=[n, d]
+        # C = self.Coefficient
+        # SHAPE = C.shape
+        # print("C.shape:", SHAPE)
         # torch.matmul 高维矩阵乘  torch.mm针对二维矩阵乘
         y = torch.matmul(self.Coefficient, x)
         return y
@@ -144,15 +147,16 @@ class DSCNet(nn.Module):
         z = self.ae.encoder(x)
         # self expression layer, reshape to vectors, multiply Coefficient, then reshape back
         shape = z.shape
-        print("z.shape is:", shape)
+        # print("z.shape is:", shape)
         z = z.view(self.n, -1)  # shape=[n, d]
-        print("z.view():", z)
+        # print("z.view():", z)
         # 通过Kmean获取m个锚点
-        print("开始调试，输出z", z)
-        z = z.detach().numpy()
-        print("转换后", z)
-        M = KMeans(n_clusters=m, random_state=0).fit(z)
-        M = torch.from_numpy(M)
+        M = z.detach().cpu().numpy()
+        M = KMeans(n_clusters=m, random_state=0).fit(M)
+        M = M.cluster_centers_
+        # print("M的值", M)
+        M = torch.from_numpy(M).to('cuda')
+        # M = M.from_numpy().to('cuda')
 
         z_recon = self.self_expression(M)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
@@ -160,6 +164,10 @@ class DSCNet(nn.Module):
         return x_recon, z, z_recon
 
     def loss_fn(self, x, x_recon, z, z_recon, weight_coef, weight_selfExp):
+        print("x.shape:", x.shape)
+        print("x_recon.shape:", x_recon.shape)
+        print("z.shape:", z.shape)
+        print("z_recon.shape:", z_recon.shape)
         loss_ae = F.mse_loss(x_recon, x, reduction='sum')
         loss_coef = torch.sum(torch.pow(self.self_expression.Coefficient, 2))
         # F.mse_loss均方误差损失
