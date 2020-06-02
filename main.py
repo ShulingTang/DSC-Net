@@ -148,8 +148,11 @@ class DSCNet(nn.Module):
         z = z.view(self.n, -1)  # shape=[n, d]
         print("z.view():", z)
         # 通过Kmean获取m个锚点
-        z = z.detach()
+        print("开始调试，输出z", z)
+        z = z.detach().numpy()
+        print("转换后", z)
         M = KMeans(n_clusters=m, random_state=0).fit(z)
+        M = torch.from_numpy(M)
 
         z_recon = self.self_expression(M)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
