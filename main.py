@@ -150,7 +150,7 @@ class DSCNet(nn.Module):
         # 通过Kmean获取m个锚点
         z = z.detach()
         M = KMeans(n_clusters=m, random_state=0).fit(z)
-
+        #######
         z_recon = self.self_expression(M)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
         x_recon = self.ae.decoder(z_recon_reshape)  # shape=[n, c, w, h]
