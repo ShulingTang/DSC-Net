@@ -122,10 +122,10 @@ class ConvAE(nn.Module):
 
 
 class SelfExpression(nn.Module):
-    def __init__(self, n, m):
+    def __init__(self, n, kmeansNum):
         super(SelfExpression, self).__init__()
         # torch.nn.Paramater 将一个不可训练的类型Tensor转换成可以训练的类型parameter并将这个parameter绑定到这个module里面
-        self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, m, dtype=torch.float32), requires_grad=True)
+        self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, kmeansNum, dtype=torch.float32), requires_grad=True)
 
     def forward(self, x):  # shape=[n, d]
         # C = self.Coefficient
@@ -135,39 +135,47 @@ class SelfExpression(nn.Module):
         y = torch.matmul(self.Coefficient, x)
         return y
 
+class kmeans(nn.Module):
+    # 初始化这里不增加这个x会报错：需要输入一个参数，但是输入了两个，并不知道道哪两个....
+    def __init__(self,x):
+        super(kmeans, self).__init__()
+        # torch.nn.Paramater 将一个不可训练的类型Tensor转换成可以训练的类型parameter并将这个parameter绑定到这个module里面
+        # self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, m, dtype=torch.float32), requires_grad=True)
+
+    def forward(self, x):  # shape=[n, d]
+        x = x.detach().cpu().numpy()
+        y = KMeans(n_clusters=kmeansNum, random_state=0).fit(x)
+        y = y.cluster_centers_
+        y = torch.from_numpy(y).to('cuda')
+        return y
+
 
 class DSCNet(nn.Module):
-    def __init__(self, channels, kernels, num_sample, m):
+    def __init__(self, channels, kernels, num_sample, kmeansNum):
         super(DSCNet, self).__init__()
         self.n = num_sample
+        self.kmeansNum = kmeansNum
         self.ae = ConvAE(channels, kernels)
-        self.self_expression = SelfExpression(self.n, m)
+        self.self_expression = SelfExpression(self.n, self.kmeansNum)
+        self.K_means = kmeans(self.kmeansNum)
 
-    def forward(self, x, m):  # shape=[n, c, w, h]
+    def forward(self, x, kmeansNum):  # shape=[n, c, w, h]
         z = self.ae.encoder(x)
         # self expression layer, reshape to vectors, multiply Coefficient, then reshape back
         shape = z.shape
         # print("z.shape is:", shape)
         z = z.view(self.n, -1)  # shape=[n, d]
-        # print("z.view():", z)
-        # 通过Kmean获取m个锚点
-        M = z.detach().cpu().numpy()
-        M = KMeans(n_clusters=m, random_state=0).fit(M)
-        M = M.cluster_centers_
-        # print("M的值", M)
-        M = torch.from_numpy(M).to('cuda')
-        # M = M.from_numpy().to('cuda')
-
+        M = self.K_means(z)
         z_recon = self.self_expression(M)  # shape=[n, d]
         z_recon_reshape = z_recon.view(shape)
         x_recon = self.ae.decoder(z_recon_reshape)  # shape=[n, c, w, h]
         return x_recon, z, z_recon
 
     def loss_fn(self, x, x_recon, z, z_recon, weight_coef, weight_selfExp):
-        print("x.shape:", x.shape)
-        print("x_recon.shape:", x_recon.shape)
-        print("z.shape:", z.shape)
-        print("z_recon.shape:", z_recon.shape)
+        # print("x.shape:", x.shape)
+        # print("x_recon.shape:", x_recon.shape)
+        # print("z.shape:", z.shape)
+        # print("z_recon.shape:", z_recon.shape)
         loss_ae = F.mse_loss(x_recon, x, reduction='sum')
         loss_coef = torch.sum(torch.pow(self.self_expression.Coefficient, 2))
         # F.mse_loss均方误差损失
@@ -179,7 +187,7 @@ class DSCNet(nn.Module):
 
 def train(model,  # type: DSCNet
           x, y, epochs, lr=1e-3, weight_coef=1.0, weight_selfExp=150, device='cuda',
-          alpha=0.04, dim_subspace=12, ro=8, show=10 , m=100):
+          alpha=0.04, dim_subspace=12, ro=8, show=10 , kmeansNum=100):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     if not isinstance(x, torch.Tensor):
         x = torch.tensor(x, dtype=torch.float32, device=device)
@@ -188,13 +196,14 @@ def train(model,  # type: DSCNet
         y = y.to('cpu').numpy()
     K = len(np.unique(y))
     for epoch in range(epochs):
-        x_recon, z, z_recon = model(x, m)
+        x_recon, z, z_recon = model(x, kmeansNum)
         loss = model.loss_fn(x, x_recon, z, z_recon, weight_coef=weight_coef, weight_selfExp=weight_selfExp)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         if epoch % show == 0 or epoch == epochs - 1:
             C = model.self_expression.Coefficient.detach().to('cpu').numpy()
+            # M = model.
             y_pred = spectral_clustering(C, K, dim_subspace, alpha, ro)
             print('Epoch %02d: loss=%.4f, acc=%.4f, nmi=%.4f' %
                   (epoch, loss.item() / y_pred.shape[0], acc(y, y_pred), nmi(y, y_pred)))
@@ -236,7 +245,7 @@ if __name__ == "__main__":
         epochs = 40
         weight_coef = 1.0
         weight_selfExp = 75
-        kmeansNum = 100
+        kmeansNum = 200
 
         # post clustering parameters
         alpha = 0.04  # threshold of C
@@ -281,7 +290,7 @@ if __name__ == "__main__":
         dim_subspace = 3  # dimension of each subspace
         ro = 1  #
 
-    dscnet = DSCNet(num_sample=num_sample, channels=channels, kernels=kernels, m=kmeansNum)
+    dscnet = DSCNet(num_sample=num_sample, channels=channels, kernels=kernels, kmeansNum=kmeansNum)
     dscnet.to(device)
 
     # load the pretrained weights which are provided by the original author in
@@ -291,5 +300,5 @@ if __name__ == "__main__":
     print("Pretrained ae weights are loaded successfully.")
 
     train(dscnet, x, y, epochs, weight_coef=weight_coef, weight_selfExp=weight_selfExp,
-          alpha=alpha, dim_subspace=dim_subspace, ro=ro, show=args.show_freq, device=device, m=kmeansNum)
+          alpha=alpha, dim_subspace=dim_subspace, ro=ro, show=args.show_freq, device=device, kmeansNum=kmeansNum)
     torch.save(dscnet.state_dict(), args.save_dir + '/%s-model.ckp' % args.db)

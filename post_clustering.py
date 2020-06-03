@@ -39,6 +39,7 @@ def thrC(C, alpha):
     if alpha < 1:
         N = C.shape[1]
         Cp = np.zeros((N, N))
+        #　np.abs:返回绝对值，np.sort对给定元素排序，默认axis = 1 按行排序， axis = 0 按列排序
         S = np.abs(np.sort(-np.abs(C), axis=0))
         Ind = np.argsort(-np.abs(C), axis=0)
         for i in range(N):
@@ -83,8 +84,12 @@ def post_proC(C, K, d, ro):
 
 
 def spectral_clustering(C, K, d, alpha, ro):
-    # 将C化为n*n、、、
+    # 将C化为n*n
+    # print("C.shape", C.shape)
+    C = torch.from_numpy(C).to('cuda')
     C = torch.matmul(C, torch.t(C))
+    C = C.detach().cpu().numpy()
+    # print("C.shape", C.shape)
     C = thrC(C, alpha)
     y, _ = post_proC(C, K, d, ro)
     return y
