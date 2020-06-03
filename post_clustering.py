@@ -84,7 +84,7 @@ def post_proC(C, K, d, ro):
 
 
 def spectral_clustering(C, K, d, alpha, ro):
-    # 将C化为n*n
+    # 将C化为n*n’
     # print("C.shape", C.shape)
     C = torch.from_numpy(C).to('cuda')
     C = torch.matmul(C, torch.t(C))
