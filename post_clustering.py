@@ -4,6 +4,8 @@ from sklearn import cluster
 from scipy.sparse.linalg import svds
 from sklearn.preprocessing import normalize
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score, adjusted_mutual_info_score
+from sklearn.cluster import KMeans
+from numpy import linalg as la
 
 nmi = normalized_mutual_info_score
 ami = adjusted_mutual_info_score
@@ -33,8 +35,7 @@ def acc(y_true, y_pred):
 
 def err_rate(gt_s, s):
     return 1.0 - acc(gt_s, s)
-
-
+'''
 def thrC(C, alpha):
     if alpha < 1:
         N = C.shape[1]
@@ -58,7 +59,6 @@ def thrC(C, alpha):
 
     return Cp
 
-
 def post_proC(C, K, d, ro):
     # C: coefficient matrix, K: number of clusters, d: dimension of each subspace
     n = C.shape[0]
@@ -81,15 +81,38 @@ def post_proC(C, K, d, ro):
     spectral.fit(L)
     grp = spectral.fit_predict(L)
     return grp, L
+'''
+def post_proC(C, K, d, alpha):
+    # 求sigma(对角矩阵，对角元素为行和，数据类型为m*m)
+    # C.shape = (n,m)
+    kmeansNum = C.shape[1]
+    sigma = np.sum(C, axis=1)
+    sigma = sigma[0:kmeansNum]
+    # print('sigma', sigma)
+    # 计算sigma的-1/2次方
+    sigma = np.diag(sigma**(-0.5))
+    # print('sigma', sigma)
+    # 计算用于svd的矩阵Ｃ＝Ｃ×ｓｉｇｍａ
+    C = np.matmul(C, sigma)
+    # print('Chat', C, '\n', 'Chat.shape', C.shape)
+
+    U, Sigma, VT = la.svd(C)
+    # print('U:',U)
+    # print('\nSigma:', Sigma)
+    # print('\nVT:', VT)
+    y = KMeans(n_clusters=K, random_state=0).fit(U)
+    y = y.labels_
+    # print('y.shape:', y.shape)
+    return y, U
 
 
 def spectral_clustering(C, K, d, alpha, ro):
     # 将C化为n*n’
     # print("C.shape", C.shape)
-    C = torch.from_numpy(C).to('cuda')
-    C = torch.matmul(C, torch.t(C))
-    C = C.detach().cpu().numpy()
+    # C = torch.from_numpy(C).to('cuda')
+    # C = torch.matmul(C, torch.t(C))
+    # C = C.detach().cpu().numpy()
     # print("C.shape", C.shape)
-    C = thrC(C, alpha)
+    # C = thrC(C, alpha)
     y, _ = post_proC(C, K, d, ro)
     return y

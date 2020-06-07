@@ -243,9 +243,9 @@ if __name__ == "__main__":
         channels = [1, 15]
         kernels = [3]
         epochs = 40
-        weight_coef = 1.0
-        weight_selfExp = 75
-        kmeansNum = 200
+        weight_coef = 20
+        weight_selfExp = 2
+        kmeansNum = 100
 
         # post clustering parameters
         alpha = 0.04  # threshold of C
