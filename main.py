@@ -187,17 +187,20 @@ class DSCNet(nn.Module):
 
 def train(model,  # type: DSCNet
           x, y, epochs, lr=1e-3, weight_coef=1.0, weight_selfExp=150, device='cuda',
-          alpha=0.04, dim_subspace=12, ro=8, show=10 , kmeansNum=100):
+          alpha=0.04, dim_subspace=12, ro=8, show=5, kmeansNum=1400):
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    # 判断一个对象是不是一个已和类型（这里为判断是不是张量）
     if not isinstance(x, torch.Tensor):
         x = torch.tensor(x, dtype=torch.float32, device=device)
     x = x.to(device)
     if isinstance(y, torch.Tensor):
         y = y.to('cpu').numpy()
+    # np.unique该函数是去除数组中的重复数字,并进行排序之后输出.
     K = len(np.unique(y))
     for epoch in range(epochs):
         x_recon, z, z_recon = model(x, kmeansNum)
         loss = model.loss_fn(x, x_recon, z, z_recon, weight_coef=weight_coef, weight_selfExp=weight_selfExp)
+        # zero the parameter gradients（该部分可以理解为随机梯度下降）
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -212,12 +215,14 @@ def train(model,  # type: DSCNet
 if __name__ == "__main__":
     import argparse
     import warnings
+    import time
 
+    start = time.time()
     # ArgumentParser参数解析器，描述它做了什么
     parser = argparse.ArgumentParser(description='DSCNet')
     # add_argument函数来增加参数
     parser.add_argument('--db', default='coil20',
-                        choices=['coil20', 'coil100', 'orl', 'reuters10k', 'stl'])
+                        choices=['coil20', 'coil100', 'orl', 'reuters10k', 'stl', 'mnist'])
     parser.add_argument('--show-freq', default=10, type=int)
     parser.add_argument('--ae-weights', default=None)
     parser.add_argument('--save-dir', default='results')
@@ -229,7 +234,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     db = args.db
     if db == 'coil20':
         # load data
@@ -242,10 +247,10 @@ if __name__ == "__main__":
         num_sample = x.shape[0]
         channels = [1, 15]
         kernels = [3]
-        epochs = 40
-        weight_coef = 20
-        weight_selfExp = 2
-        kmeansNum = 100
+        epochs = 60
+        weight_coef = 1.0
+        weight_selfExp = 75
+        kmeansNum = 1400
 
         # post clustering parameters
         alpha = 0.04  # threshold of C
@@ -266,7 +271,6 @@ if __name__ == "__main__":
         weight_coef = 1.0
         weight_selfExp = 15
         kmeansNum = 100
-
         # post clustering parameters
         alpha = 0.04  # threshold of C
         dim_subspace = 12  # dimension of each subspace
@@ -289,7 +293,27 @@ if __name__ == "__main__":
         alpha = 0.2  # threshold of C
         dim_subspace = 3  # dimension of each subspace
         ro = 1  #
+    elif db == 'mnist':
+        # load data
+        data = sio.loadmat('datasets/training_data.mat')
+        x, y = data['X'].reshape((-1, 1, 28, 28)), data['y']
+        I = np.identity(10)
+        y = np.squeeze(y - 1)  # y in [0, 1, ..., K-1]
+        # y = I[:, y]
 
+        # network and optimization parameters
+        num_sample = x.shape[0]
+        channels = [1, 3, 3, 5]
+        kernels = [3, 3, 3]
+        epochs = 700
+        weight_coef = 2.0
+        weight_selfExp = 0.2
+        kmeansNum = 100
+
+        # post clustering parameters
+        alpha = 0.2  # threshold of C
+        dim_subspace = 3  # dimension of each subspace
+        ro = 1  #
     dscnet = DSCNet(num_sample=num_sample, channels=channels, kernels=kernels, kmeansNum=kmeansNum)
     dscnet.to(device)
 
@@ -301,4 +325,6 @@ if __name__ == "__main__":
 
     train(dscnet, x, y, epochs, weight_coef=weight_coef, weight_selfExp=weight_selfExp,
           alpha=alpha, dim_subspace=dim_subspace, ro=ro, show=args.show_freq, device=device, kmeansNum=kmeansNum)
+    end = time.time()
+    print(str(time))
     torch.save(dscnet.state_dict(), args.save_dir + '/%s-model.ckp' % args.db)

@@ -1,11 +1,8 @@
-import torch
 import numpy as np
-from sklearn import cluster
 from scipy.sparse.linalg import svds
 from sklearn.preprocessing import normalize
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score, adjusted_mutual_info_score
 from sklearn.cluster import KMeans
-from numpy import linalg as la
 
 nmi = normalized_mutual_info_score
 ami = adjusted_mutual_info_score
@@ -35,56 +32,11 @@ def acc(y_true, y_pred):
 
 def err_rate(gt_s, s):
     return 1.0 - acc(gt_s, s)
-'''
-def thrC(C, alpha):
-    if alpha < 1:
-        N = C.shape[1]
-        Cp = np.zeros((N, N))
-        #　np.abs:返回绝对值，np.sort对给定元素排序，默认axis = 1 按行排序， axis = 0 按列排序
-        S = np.abs(np.sort(-np.abs(C), axis=0))
-        Ind = np.argsort(-np.abs(C), axis=0)
-        for i in range(N):
-            cL1 = np.sum(S[:, i]).astype(float)
-            stop = False
-            csum = 0
-            t = 0
-            while (stop == False):
-                csum = csum + S[t, i]
-                if csum > alpha * cL1:
-                    stop = True
-                    Cp[Ind[0:t + 1, i], i] = C[Ind[0:t + 1, i], i]
-                t = t + 1
-    else:
-        Cp = C
 
-    return Cp
-
-def post_proC(C, K, d, ro):
-    # C: coefficient matrix, K: number of clusters, d: dimension of each subspace
-    n = C.shape[0]
-    C = 0.5 * (C + C.T)
-    # C = C - np.diag(np.diag(C)) + np.eye(n, n)  # good for coil20, bad for orl
-    r = d * K + 1
-    U, S, _ = svds(C, r, v0=np.ones(n))
-    U = U[:, ::-1]
-    S = np.sqrt(S[::-1])
-    S = np.diag(S)
-    U = U.dot(S)
-    U = normalize(U, norm='l2', axis=1)
-    Z = U.dot(U.T)
-    Z = Z * (Z > 0)
-    L = np.abs(Z ** ro)
-    L = L / L.max()
-    L = 0.5 * (L + L.T)
-    spectral = cluster.SpectralClustering(n_clusters=K, eigen_solver='arpack', affinity='precomputed',
-                                          assign_labels='discretize')
-    spectral.fit(L)
-    grp = spectral.fit_predict(L)
-    return grp, L
-'''
 def post_proC(C, K, d, alpha):
     # 求sigma(对角矩阵，对角元素为行和，数据类型为m*m)
     # C.shape = (n,m)
+    n = C.shape[0]
     kmeansNum = C.shape[1]
     sigma = np.sum(C, axis=1)
     sigma = sigma[0:kmeansNum]
@@ -95,24 +47,14 @@ def post_proC(C, K, d, alpha):
     # 计算用于svd的矩阵Ｃ＝Ｃ×ｓｉｇｍａ
     C = np.matmul(C, sigma)
     # print('Chat', C, '\n', 'Chat.shape', C.shape)
-
-    U, Sigma, VT = la.svd(C)
-    # print('U:',U)
-    # print('\nSigma:', Sigma)
-    # print('\nVT:', VT)
+    r = min(d * K + 1, C.shape[1] - 1)
+    U, Sigma, _ = svds(C, r, v0=np.ones(kmeansNum))
+    # U, Sigma, VT = la.svd(C)
+    U = normalize(U, norm='l2', axis=1)
     y = KMeans(n_clusters=K, random_state=0).fit(U)
     y = y.labels_
-    # print('y.shape:', y.shape)
     return y, U
 
-
 def spectral_clustering(C, K, d, alpha, ro):
-    # 将C化为n*n’
-    # print("C.shape", C.shape)
-    # C = torch.from_numpy(C).to('cuda')
-    # C = torch.matmul(C, torch.t(C))
-    # C = C.detach().cpu().numpy()
-    # print("C.shape", C.shape)
-    # C = thrC(C, alpha)
     y, _ = post_proC(C, K, d, ro)
     return y
