@@ -15,22 +15,25 @@ def get_Coefficient(X, kmeansNum, alpha):
     M = KMeans(n_clusters=kmeansNum, random_state=0).fit(X)
     num, dim = X.shape
     M = M.cluster_centers_
-    A = 2*alpha*np.identity(kmeansNum)+2*np.matmul(M, M.T)
-    A = matrix(1/2*(A+A.T))  # A.shape = (m, m)
+    H = 2*alpha*np.identity(kmeansNum)+2*np.matmul(M, M.T)
+    H = matrix(1/2*(H+H.T))  # A.shape = (m, m)
     B = X.T  # B.shape = (d, n)
     Z = []
     I = matrix(np.ones(kmeansNum))
     # I = matrix(I.T)
-    print(I.shape)
     b = matrix(0.0)
     for i in range(num):
         # fi.shape = (m ,1)
         fi = np.matmul(-2*(B[:, i]).T, M.T)
         fi = matrix(fi.reshape(1, kmeansNum))
-        zi = solvers.qp(A, fi, G=None, h=None, A=I, b=b, kktsolver=None)
+        zi = solvers.qp(H, fi.T, G=None, h=None, A=I.T, b=b, kktsolver=None)
+        # print(zi.shape)
+        zi = np.array(zi['x']).reshape(kmeansNum)
         Z = np.r_[Z, zi]
+    Z = Z.reshape(num, kmeansNum)
     return Z
 
+    print(Z.shape)
 
 if __name__ == "__main__":
     C = np.random.randint(1, 10, (1000, 216))
