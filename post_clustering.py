@@ -43,13 +43,10 @@ def post_proC(C, K, d, alpha):
     # print('sigma', sigma)
     # 计算sigma的-1/2次方
     sigma = np.diag(sigma**(-0.5))
-    # print('sigma', sigma)
-    # 计算用于svd的矩阵Ｃ＝Ｃ×ｓｉｇｍａ
     C = np.matmul(C, sigma)
     # print('Chat', C, '\n', 'Chat.shape', C.shape)
     r = min(d * K + 1, C.shape[1] - 1)
     U, Sigma, _ = svds(C, r, v0=np.ones(kmeansNum))
-    # U, Sigma, VT = la.svd(C)
     U = normalize(U, norm='l2', axis=1)
     y = KMeans(n_clusters=K, random_state=0).fit(U)
     y = y.labels_
@@ -58,3 +55,39 @@ def post_proC(C, K, d, alpha):
 def spectral_clustering(C, K, d, alpha, ro):
     y, _ = post_proC(C, K, d, ro)
     return y
+
+
+
+def matlab_max(A, B):
+    shape = A.shape
+    a = A.ravel()
+    b = B.ravel()
+    c = []
+    for i in range(a.size):
+        if a[i]>b[i]:
+            ci = a[i]
+        else:ci = b[i]
+        c = np.r_[c, ci]
+    c = c.reshape(shape)
+    return c
+
+def mysvd(C, ReducedDim=None):
+    #  You can change this number according your machine computational power
+    max_matrix_size = 1600
+    eigvector_ratio = 0.1
+
+    if not ReducedDim is None:
+        k = 0
+    nSmp, mFea = C.shape
+    if mFea/nSmp > 1.0713:
+        ddata = np.matmul(C, C.T)
+        ddata = matlab_max(ddata, ddata.T)
+
+        dimMatric = ddata.shape(1)
+        if ReducedDim > 0 and dimMatric > max_matrix_size and ReducedDim < dimMatric*eigvector_ratio:
+
+
+
+
+
+

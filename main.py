@@ -7,10 +7,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from post_clustering import spectral_clustering, acc, nmi
+from post_clustering_pre import spectral_clustering, acc, nmi
 import scipy.io as sio
 import math
-from sklearn.cluster import KMeans
+# from sklearn.cluster import KMeans
+from test import get_Coefficient
 
 
 class Conv2dSamePad(nn.Module):
@@ -126,15 +127,18 @@ class SelfExpression(nn.Module):
         super(SelfExpression, self).__init__()
         # torch.nn.Paramater 将一个不可训练的类型Tensor转换成可以训练的类型parameter并将这个parameter绑定到这个module里面
         self.Coefficient = nn.Parameter(1.0e-8 * torch.ones(n, kmeansNum, dtype=torch.float32), requires_grad=True)
+    def forward(self, x, kmeansNum):  # shape=[n, d]
+        c, m = get_Coefficient(x, kmeansNum)
+        self.Coefficient = nn.Parameter(c)
+        y = torch.matmul(self.Coefficient, m)
+        return y
 
-    def forward(self, x):  # shape=[n, d]
         # C = self.Coefficient
         # SHAPE = C.shape
         # print("C.shape:", SHAPE)
         # torch.matmul 高维矩阵乘  torch.mm针对二维矩阵乘
-        y = torch.matmul(self.Coefficient, x)
-        return y
 
+'''
 class kmeans(nn.Module):
     # 初始化这里不增加这个x会报错：需要输入一个参数，但是输入了两个，并不知道道哪两个....
     def __init__(self,x):
@@ -149,7 +153,7 @@ class kmeans(nn.Module):
         y = torch.from_numpy(y).to('cuda')
         return y
 
-
+'''
 class DSCNet(nn.Module):
     def __init__(self, channels, kernels, num_sample, kmeansNum):
         super(DSCNet, self).__init__()
@@ -157,7 +161,7 @@ class DSCNet(nn.Module):
         self.kmeansNum = kmeansNum
         self.ae = ConvAE(channels, kernels)
         self.self_expression = SelfExpression(self.n, self.kmeansNum)
-        self.K_means = kmeans(self.kmeansNum)
+        # self.K_means = kmeans(self.kmeansNum)
 
     def forward(self, x, kmeansNum):  # shape=[n, c, w, h]
         z = self.ae.encoder(x)
@@ -165,8 +169,9 @@ class DSCNet(nn.Module):
         shape = z.shape
         # print("z.shape is:", shape)
         z = z.view(self.n, -1)  # shape=[n, d]
-        M = self.K_means(z)
-        z_recon = self.self_expression(M)  # shape=[n, d]
+        # M = self.K_means(z)
+        z_recon = self.self_expression(z, kmeansNum)  # shape=[n, d]
+        # z_recon = torch.from_numpy(z_recon).to('cuda')
         z_recon_reshape = z_recon.view(shape)
         x_recon = self.ae.decoder(z_recon_reshape)  # shape=[n, c, w, h]
         return x_recon, z, z_recon
@@ -187,7 +192,7 @@ class DSCNet(nn.Module):
 
 def train(model,  # type: DSCNet
           x, y, epochs, lr=1e-3, weight_coef=1.0, weight_selfExp=150, device='cuda',
-          alpha=0.04, dim_subspace=12, ro=8, show=5, kmeansNum=1400):
+          alpha=0.04, dim_subspace=12, ro=8, show=5, kmeansNum=200):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     # 判断一个对象是不是一个已和类型（这里为判断是不是张量）
     if not isinstance(x, torch.Tensor):
@@ -206,6 +211,7 @@ def train(model,  # type: DSCNet
         optimizer.step()
         if epoch % show == 0 or epoch == epochs - 1:
             C = model.self_expression.Coefficient.detach().to('cpu').numpy()
+            # print('C:', C)
             # M = model.
             y_pred = spectral_clustering(C, K, dim_subspace, alpha, ro)
             print('Epoch %02d: loss=%.4f, acc=%.4f, nmi=%.4f' %
@@ -221,7 +227,7 @@ if __name__ == "__main__":
     # ArgumentParser参数解析器，描述它做了什么
     parser = argparse.ArgumentParser(description='DSCNet')
     # add_argument函数来增加参数
-    parser.add_argument('--db', default='coil20',
+    parser.add_argument('--db', default='coil100',
                         choices=['coil20', 'coil100', 'orl', 'reuters10k', 'stl', 'mnist'])
     parser.add_argument('--show-freq', default=10, type=int)
     parser.add_argument('--ae-weights', default=None)
@@ -250,7 +256,7 @@ if __name__ == "__main__":
         epochs = 60
         weight_coef = 1.0
         weight_selfExp = 75
-        kmeansNum = 1400
+        kmeansNum = 200
 
         # post clustering parameters
         alpha = 0.04  # threshold of C

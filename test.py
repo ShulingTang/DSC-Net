@@ -1,39 +1,50 @@
 from sklearn.cluster import KMeans
 import numpy as np
 from cvxopt import matrix, solvers
+import torch
 
-def get_Coefficient(X, kmeansNum, alpha):
+def get_Coefficient(x, kmeansNum):
     """
     In this part, first conduct kmeans to obtain M anchor points,
-    and then construct a coefficient matrix C through the anchor points
+    then construct a coefficient matrix C through the anchor points
     and all the data.
-    :param X: sampled data
-    :param M:anchor graph
+    :param x: sampled data
+    :param kmeansNum:anchor graph
     :return C:Coefficient Matrix
     """
-    # X.shape = (n, d), M.shape = (m, d)
-    M = KMeans(n_clusters=kmeansNum, random_state=0).fit(X)
-    num, dim = X.shape
-    M = M.cluster_centers_
-    H = 2*alpha*np.identity(kmeansNum)+2*np.matmul(M, M.T)
-    H = matrix(1/2*(H+H.T))  # A.shape = (m, m)
-    B = X.T  # B.shape = (d, n)
-    Z = []
-    I = matrix(np.ones(kmeansNum))
+    # x.shape = (n, d), m.shape = (m, d)
+    alpha = 1.0
+    if isinstance(x, torch.Tensor):
+        x = x.detach().cpu().numpy()
+    # x = x.numpy()
+    m = KMeans(n_clusters=kmeansNum, random_state=0).fit(x)
+    num, dim = x.shape
+    m = m.cluster_centers_   # m.shape = (m, d)
+    h = 2*alpha*np.identity(kmeansNum)+2*np.matmul(m, m.T)
+    h = matrix(1/2*(h+h.T))  # A.shape = (m, m)
+    bb = x.T   # B.shape = (d, n)
+    z = []
+    l = matrix(np.ones(kmeansNum))
+
     # I = matrix(I.T)
-    b = matrix(0.0)
+    o = matrix(0.0)
     for i in range(num):
         # fi.shape = (m ,1)
-        fi = np.matmul(-2*(B[:, i]).T, M.T)
+        fi = np.matmul(-2*(bb[:, i]).T, m.T)
+        # fi.type = ndarray　shape = {tuple}(m,)
+        fi = fi.astype(np.float64)
         fi = matrix(fi.reshape(1, kmeansNum))
-        zi = solvers.qp(H, fi.T, G=None, h=None, A=I.T, b=b, kktsolver=None)
+        fi = matrix(fi)
+        zi = solvers.qp(h, fi.T, G=None, h=None, A=l.T, b=o, kktsolver=None)
         # print(zi.shape)
         zi = np.array(zi['x']).reshape(kmeansNum)
-        Z = np.r_[Z, zi]
-    Z = Z.reshape(num, kmeansNum)
-    return Z
+        z = np.r_[z, zi]
+    z = z.reshape(num, kmeansNum)  # z.shape = (n, m)
+    z = z.astype(np.float32)
+    z = torch.from_numpy(z).to('cuda')
+    m = torch.from_numpy(m).to('cuda')
+    return z, m
 
-    print(Z.shape)
 
 if __name__ == "__main__":
     C = np.random.randint(1, 10, (1000, 216))
@@ -42,4 +53,4 @@ if __name__ == "__main__":
     # 子空间维数
 
     alpha = 1
-    y = get_Coefficient(C, K, alpha)
+    y = get_Coefficient(C, K)
