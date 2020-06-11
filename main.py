@@ -7,11 +7,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from post_clustering_pre import spectral_clustering, acc, nmi
+from post_clustering import spectral_clustering, acc, nmi
 import scipy.io as sio
 import math
 # from sklearn.cluster import KMeans
-from test import get_Coefficient
+from get_C import get_Coefficient
 
 
 class Conv2dSamePad(nn.Module):
@@ -192,7 +192,7 @@ class DSCNet(nn.Module):
 
 def train(model,  # type: DSCNet
           x, y, epochs, lr=1e-3, weight_coef=1.0, weight_selfExp=150, device='cuda',
-          alpha=0.04, dim_subspace=12, ro=8, show=5, kmeansNum=200):
+          alpha=0.04, dim_subspace=12, ro=8, show=5, kmeansNum=100):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     # 判断一个对象是不是一个已和类型（这里为判断是不是张量）
     if not isinstance(x, torch.Tensor):
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # ArgumentParser参数解析器，描述它做了什么
     parser = argparse.ArgumentParser(description='DSCNet')
     # add_argument函数来增加参数
-    parser.add_argument('--db', default='coil100',
+    parser.add_argument('--db', default='coil20',
                         choices=['coil20', 'coil100', 'orl', 'reuters10k', 'stl', 'mnist'])
     parser.add_argument('--show-freq', default=10, type=int)
     parser.add_argument('--ae-weights', default=None)
@@ -253,10 +253,10 @@ if __name__ == "__main__":
         num_sample = x.shape[0]
         channels = [1, 15]
         kernels = [3]
-        epochs = 60
+        epochs = 40
         weight_coef = 1.0
         weight_selfExp = 75
-        kmeansNum = 200
+        kmeansNum = 100
 
         # post clustering parameters
         alpha = 0.04  # threshold of C
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         epochs = 120
         weight_coef = 1.0
         weight_selfExp = 15
-        kmeansNum = 100
+        kmeansNum = 800
         # post clustering parameters
         alpha = 0.04  # threshold of C
         dim_subspace = 12  # dimension of each subspace
@@ -293,7 +293,7 @@ if __name__ == "__main__":
         epochs = 700
         weight_coef = 2.0
         weight_selfExp = 0.2
-        kmeansNum = 100
+        kmeansNum = 50
 
         # post clustering parameters
         alpha = 0.2  # threshold of C
