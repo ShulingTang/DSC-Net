@@ -21,7 +21,7 @@ def get_Coefficient(x, kmeansNum):
     num, dim = x.shape
     m = m.cluster_centers_   # m.shape = (m, d)
     h = 2*alpha*np.identity(kmeansNum)+2*np.matmul(m, m.T)
-    h = matrix(1/2*(h+h.T))  # A.shape = (m, m)
+    h = matrix(1/2*(h+h.T))  # h.shape = (m, m)
     bb = x.T   # B.shape = (d, n)
     z = []
     l = matrix(np.ones(kmeansNum))
