@@ -5,9 +5,7 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score, adjusted_mutual_info_score
 from sklearn.cluster import KMeans
 from scipy.sparse import spdiags
-# import scipy as sp
-# import scipy.sparse.linalg
-# import scipy.io as sio
+
 
 nmi = normalized_mutual_info_score
 ami = adjusted_mutual_info_score
@@ -39,6 +37,7 @@ def err_rate(gt_s, s):
     return 1.0 - acc(gt_s, s)
 
 # 这个函数没用了
+'''
 def post_proC(C, K, d, alpha):
     # 求sigma(对角矩阵，对角元素为行和，数据类型为m*m)
     # C.shape = (n,m)
@@ -58,9 +57,10 @@ def post_proC(C, K, d, alpha):
     y = KMeans(n_clusters=K, random_state=0).fit(U)
     y = y.labels_
     return C
-
+'''
 
 ####################################
+# 这部分为直接调用matlab中svd部分代码
 def spectral_clustering(C, K, d, alpha, ro):
     import matlab.engine
     eng = matlab.engine.start_matlab()
@@ -76,15 +76,17 @@ def spectral_clustering(C, K, d, alpha, ro):
     # y, _ = mysvd(C, K)
     return y
 
-
+#################################
+# 这部分为翻译的matlab svd部分代码
+'''
 
 def sort_eigvector_by_eigvalue(a, b):
-    '''
+    
 
-    :param a: eigvalue
-    :param b: eigvector
-    :return:
-    '''
+    # :param a: eigvalue
+    # :param b: eigvector
+    # :return:
+   
     a = -np.abs(a)
     asort = np.abs(np.sort(a, axis=0))
     index = a.argsort()
@@ -123,12 +125,12 @@ def mysvd(C, ReducedDim=None):
             U, eigvalue = eigs(ddata, ReducedDim, which='LM')
             eigvalue = np.diag(eigvalue)
         else:
-            '''
+            
             # matlab code
-            if issparse(ddata)
-                ddate = full(ddata)
-                
-            '''
+            # if issparse(ddata)
+            #     ddate = full(ddata)
+            #     
+            
             eigvalue, U = np.linalg.eig(ddata)
             # eigvalue = np.diag(eigvalue)
             # eigvalue = np.abs(np.sort(-np.abs(eigvalue), axis=0))
@@ -155,12 +157,12 @@ def mysvd(C, ReducedDim=None):
             V, eigvalue = eigs(ddata, ReducedDim, which='LM')
             eigvalue = np.diag(eigvalue)
         else:
-            '''
+            
             # matlab code
-            if issparse(ddata)
-                ddate = full(ddata)
+            # if issparse(ddata)
+            #     ddate = full(ddata)
 
-            '''
+            
             eigvalue, V = np.linalg.eig(ddata)
             # eigvalue = np.diag(eigvalue)
             # eigvalue = np.abs(np.sort(-np.abs(eigvalue), axis=0))
@@ -192,4 +194,5 @@ if __name__ == "__main__":
     C = np.random.randint(1, 10, (1000, 216))
     k = 20
     U = mysvd(C, k)
-    print('U:', U)
+
+'''
