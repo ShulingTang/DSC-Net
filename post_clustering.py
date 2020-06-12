@@ -38,16 +38,18 @@ def acc(y_true, y_pred):
 def err_rate(gt_s, s):
     return 1.0 - acc(gt_s, s)
 
+# 这个函数没用了
 def post_proC(C, K, d, alpha):
     # 求sigma(对角矩阵，对角元素为行和，数据类型为m*m)
     # C.shape = (n,m)
     n = C.shape[0]
     kmeansNum = C.shape[1]
-    sigma = np.sum(C, axis=1)
+    sigma = np.sum(C, axis=0)
     sigma = sigma[0:kmeansNum]
     # print('sigma', sigma)
     # 计算sigma的-1/2次方
-    sigma = np.diag(sigma**(-0.5))
+    sigma = np.abs(sigma)**(-0.5)
+    sigma = np.diag(sigma)
     C = np.matmul(C, sigma)
     # print('Chat', C, '\n', 'Chat.shape', C.shape)
     r = min(d * K + 1, C.shape[1] - 1)
@@ -55,14 +57,26 @@ def post_proC(C, K, d, alpha):
     U = normalize(U, norm='l2', axis=1)
     y = KMeans(n_clusters=K, random_state=0).fit(U)
     y = y.labels_
-    return y, U
+    return C
 
-def spectral_clustering(C, K, d, alpha, ro):
-    # y, _ = post_proC(C, K, d, ro)
-    y, _ = mysvd(C, K)
-    return y
 
 ####################################
+def spectral_clustering(C, K, d, alpha, ro):
+    import matlab.engine
+    eng = matlab.engine.start_matlab()
+    n, m = C.shape
+    C = C.tolist()
+    U = eng.mySVD(C, K, n, m)
+    # U, sig, V = result
+    # y = eng.litekmeans(U, K)
+    # labels = litekmeans(U, k, 'MaxIter', 100, 'Replicates', 10)
+    eng.quit()
+    y = KMeans(n_clusters=K, random_state=0).fit(U)
+    y = y.labels_
+    # y, _ = mysvd(C, K)
+    return y
+
+
 
 def sort_eigvector_by_eigvalue(a, b):
     '''
