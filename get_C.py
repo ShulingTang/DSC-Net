@@ -2,7 +2,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 from cvxopt import matrix, solvers
 import torch
-
+import matlab.engine
 def get_Coefficient(x, kmeansNum):
     """
     In this part, first conduct kmeans to obtain M anchor points,
@@ -20,6 +20,8 @@ def get_Coefficient(x, kmeansNum):
     m = KMeans(n_clusters=kmeansNum, random_state=0).fit(x)
     num, dim = x.shape
     m = m.cluster_centers_   # m.shape = (m, d)
+    '''
+    # 该部分为翻译的matlab代码
     h = 2*alpha*np.identity(kmeansNum)+2*np.matmul(m, m.T)
     h = matrix(1/2*(h+h.T))  # h.shape = (m, m)
     bb = x.T   # B.shape = (d, n)
@@ -42,6 +44,22 @@ def get_Coefficient(x, kmeansNum):
     z = z.reshape(num, kmeansNum)  # z.shape = (n, m)
     z = z.astype(np.float32)
     z = torch.from_numpy(z).to('cuda')
+    m = torch.from_numpy(m).to('cuda')
+    '''
+    ############
+    # 这部分直接调用matlab中的代码来获取参数C
+    a, b = x.shape
+    c, d = m.shape
+    x = x.tolist()
+    mm = m.tolist()
+    eng = matlab.engine.start_matlab()
+    z = eng.get_c(x, mm, alpha, a, b, c, d)
+    eng.quit()
+    # print(type(z))
+    z = np.array(z)
+    z = z.astype(np.float32)
+    z = torch.from_numpy(z).to('cuda')
+    # z = z.T
     m = torch.from_numpy(m).to('cuda')
     return z, m
 

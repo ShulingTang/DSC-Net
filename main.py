@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from post_clustering import spectral_clustering, acc, nmi
+from post_clustering_pre import spectral_clustering, acc, nmi
 import scipy.io as sio
 import math
 # from sklearn.cluster import KMeans
@@ -182,9 +182,12 @@ class DSCNet(nn.Module):
         # print("z.shape:", z.shape)
         # print("z_recon.shape:", z_recon.shape)
         loss_ae = F.mse_loss(x_recon, x, reduction='sum')
+        # print('loss_ae:', loss_ae)
         loss_coef = torch.sum(torch.pow(self.self_expression.Coefficient, 2))
+        # print('loss_coef', loss_coef)
         # F.mse_loss均方误差损失
         loss_selfExp = F.mse_loss(z_recon, z, reduction='sum')
+        # print('loss_selfExp:', loss_selfExp)
         loss = loss_ae + weight_coef * loss_coef + weight_selfExp * loss_selfExp
 
         return loss
